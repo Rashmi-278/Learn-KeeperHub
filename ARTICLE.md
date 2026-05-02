@@ -232,6 +232,45 @@ These aren't deal-breakers. They're the kind of friction every platform has at t
 
 ---
 
+## Setting up the Discord webhook (5 minutes)
+
+For the threshold-guardian to actually alert you, KeeperHub needs a Discord webhook URL. KeeperHub's `discord/send-message` action does *not* use a bot token or OAuth — just a per-channel webhook URL. Cleanest possible auth model.
+
+### In Discord
+
+1. Pick (or create) the server and channel you want alerts in. Something like `#kh-guardian` works.
+2. Hover the channel → click the **gear** icon (Edit Channel).
+3. Left sidebar → **Integrations** → **Webhooks** → **New Webhook**.
+4. Name it (e.g. `KeeperHub Guardian`), pick an avatar if you like.
+5. Click **Copy Webhook URL**. The URL looks like:
+   ```
+   https://discord.com/api/webhooks/123456789012345678/AbCdEfGh-LongRandomToken_Xyz...
+   ```
+6. **Save**.
+
+That URL is the credential. Anyone with it can post to the channel — treat it like a password.
+
+### In KeeperHub
+
+1. [app.keeperhub.com](https://app.keeperhub.com/) → **Integrations** in the left nav.
+2. **New Integration** → pick **Discord**.
+3. Paste the webhook URL into the `webhookUrl` field.
+4. Name it something descriptive (e.g. `KH Guardian Channel`).
+5. **Save**.
+
+KeeperHub assigns the integration an ID (like `9k7jxusbfv6ghljnbfzc8`). Grab it via `list_integrations` — it shows up alongside any wallet integrations you already have:
+
+```json
+{
+  "id": "9k7jxusbfv6ghljnbfzc8",
+  "name": "Keeperhub ENS Multisig treasury guardian",
+  "type": "discord",
+  ...
+}
+```
+
+You'll wire that ID into the `discord/send-message` action's `integrationId` field. **Heads up:** the public Safe templates ship with the Discord node missing `integrationId` entirely. The workflow saves and even enables, but the Discord call would fail at execute time. Always patch `integrationId` after `deploy_template`.
+
 ## Running the workflow
 
 Once `create_workflow` returns an ID, you flip it on:
@@ -251,6 +290,78 @@ get_execution_logs(execution_id)     → step-by-step trace, including tx hashes
 If a step failed, the logs name the node and the error. Fix the schema, `update_workflow`, run again. The platform handles gas estimation, retry, and sequencing — you don't.
 
 ---
+
+## Doing it for real — what actually happened
+
+Walked through the full flow against a real ENS-treasury Safe on mainnet (`0x91c32893216dE3eA0a55ABb9851f581d4503d39b`), using the `Threshold Change Alert` template (id `5ixuu7ohjcqf5sqi0tppw`). Here is exactly what each call did, including the bumps.
+
+### `deploy_template` — clones, but ignores your name
+
+```
+deploy_template({
+  templateId: "5ixuu7ohjcqf5sqi0tppw",
+  name: "ENS Multisig: Threshold Guardian"
+})
+→ { id: "vzhk455chprgjm1ccqzwa", name: "Threshold Change Alert (Copy)", ... }
+```
+
+Yes, the `name` parameter was silently ignored. The clone landed with the auto-generated `(Copy)` suffix. Fix it in the next `update_workflow` call.
+
+### What landed in the clone
+
+The cloned workflow is verbatim from the template — including the Sepolia placeholder address and Sepolia chain ID. **Defects copied along with the workflow:**
+
+1. `network: "11155111"` (Sepolia) on both the trigger and the `safe/get-owners` action — needs to be `"1"` for mainnet.
+2. `contractAddress: "0xed772Df22f203917480EE0F7e3ca0ef7Bc2b206b"` (template placeholder) on both nodes — needs to be the real Safe.
+3. The `safe/get-owners` node's `label` is the empty string `""`, but the Discord message body references `{{@<nodeId>:Safe: Get Owners.owners}}`. The reference can't resolve against an empty label, so the published message would have rendered the literal template instead of the owner list. Set the label to `"Safe: Get Owners"` to match the reference.
+4. The Discord node has `actionType: "discord/send-message"` but **no `integrationId`**. Without that field the alert silently fails to deliver. The featured template literally cannot work as cloned.
+
+### One `update_workflow` call patches all four
+
+```
+update_workflow({
+  workflowId: "vzhk455chprgjm1ccqzwa",
+  name: "ENS Multisig: Threshold Guardian",
+  description: "...",
+  nodes: [/* trigger with network:"1" + real address;
+            get-owners with network:"1" + real address + label:"Safe: Get Owners";
+            discord with integrationId:"9k7jxusbfv6ghljnbfzc8" */],
+  edges: [/* unchanged */]
+})
+```
+
+Then a second call to flip `enabled: true`. Workflow is now live.
+
+### Smoke-testing the read against the live Safe
+
+`execute_workflow` on an Event-triggered workflow can't manufacture an on-chain event, so it isn't a useful smoke test for the trigger. But you can verify the read half independently with `execute_protocol_action`:
+
+```
+execute_protocol_action({
+  actionType: "safe/get-owners",
+  params: { network: "1", contractAddress: "0x91c32893216dE3eA0a55ABb9851f581d4503d39b" }
+})
+```
+
+Returns:
+```json
+{
+  "success": true,
+  "result": [
+    "0x75d91395CD36f24f990bbdE69993cB20B96EcFa6",
+    "0xc02771315d0958F23a64140160E78ECB9bB8614e",
+    "0x0B8B1ed2594B36aedbF44DD17674f4686eDFeE6B",
+    "0x70B8769B09aF7447886620c20854c8B9119b5FeE"
+  ],
+  "addressLink": "https://etherscan.io/address/0x91c32893216dE3eA0a55ABb9851f581d4503d39b"
+}
+```
+
+That confirms the chain-ID patch (`"1"` not `"sepolia"`/`"11155111"`), the real address binding, and the Para MPC backend reading mainnet correctly. The full path of the alert — event-fires → owners-read → Discord-post — relies on all three of: the chain mount, the auto-fetched ABI for the Safe proxy, and the Discord webhook. The first two are now verified live; the Discord half waits on a real `ChangedThreshold` event.
+
+### Takeaway from the live deploy
+
+The `deploy_template → update_workflow → enable → smoke` loop took six MCP calls and four manual patches to get a featured template working. The marketing version of this is "deploy a Safe guardian in one click." The real version is "deploy a 70%-correct workflow, fix four schema bugs, then it works." That's still useful — typing this from scratch would be a lot more than four corrections — but it isn't one click.
 
 ## What I'd do differently for production
 

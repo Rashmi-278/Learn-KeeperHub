@@ -113,6 +113,27 @@ The `tips` array returned by `get_plugin` contains landmines that exist nowhere 
 
 These should be promoted to first-class public docs. Hiding them in a payload that only loads when an agent calls `get_plugin` means humans authoring through the UI never see them, and agents discover them by hitting validation errors.
 
+### B9-pre. `deploy_template` silently ignores the `name` parameter
+
+```
+deploy_template({ templateId: "5ixuu7ohjcqf5sqi0tppw", name: "ENS Multisig: Threshold Guardian" })
+→ { id: "vzhk455chprgjm1ccqzwa", name: "Threshold Change Alert (Copy)", ... }
+```
+
+The optional `name` parameter is documented in the schema but discarded by the implementation. The clone always keeps the source name with `(Copy)` appended. Either implement the rename or remove the parameter from the schema; right now it's dead config.
+
+### B9-extra. The "Threshold Change Alert" featured template has the same family of defects as the "Wallet ETH Balance Watcher"
+
+Verified by deploying it live (`get_template("5ixuu7ohjcqf5sqi0tppw")` and `deploy_template` of same):
+
+1. **Discord node missing `integrationId`.** Action type is `discord/send-message`, but the field that points at the Discord webhook integration is absent. The workflow saves, enables, and the trigger fires — but the Discord post would fail at execution because the action has no credential to use. Featured template that physically cannot deliver its alert.
+
+2. **`safe/get-owners` node has `label: ""`.** The Discord message references `{{@<nodeId>:Safe: Get Owners.owners}}`. With an empty label the reference doesn't resolve; the published message would render the literal template string instead of the owner list. Self-contradictory template.
+
+3. **Sepolia placeholder address and chain.** Documented in the description ("Replace the Safe proxy address (0x0000...0001) with your own") — but the placeholder used is `0xed772Df22f203917480EE0F7e3ca0ef7Bc2b206b` (a different Sepolia Safe), not the documented `0x0000...0001`. The description and template disagree.
+
+This isn't one bad template. The same defect shape (missing `integrationId`, label/reference mismatch, hardcoded placeholder address) appears in the Safe family's featured templates. Either the templates were never tested end-to-end, or there's no CI lint over them.
+
 ### B9a. The featured "Wallet ETH Balance Watcher" template is broken
 
 The canonical hello-world template (`get_template("qf8nxbxhdsqie2r3u1pb2")`) ships with multiple defects:
