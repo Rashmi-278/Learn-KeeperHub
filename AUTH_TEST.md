@@ -50,6 +50,22 @@ The handler should reject unauthenticated requests with `401 {"error":"Unauthori
 
 ## Related observations
 
-- Documented endpoints `/api/executions` and `/api/execute` both return Next.js HTML 404 with a `wfb_` key. They should at minimum return JSON 401 (rejected scope). The HTML 404 suggests the routes are not mounted at the documented paths.
+- Documented endpoints `/api/executions` and `/api/execute` both return Next.js HTML 404. **Confirmed scope-independent:** retested with a valid `kh_` (organization-scoped) key — still 404 HTML. The auth doc explicitly lists both as accepting `kh_` keys. The routes are not mounted at the documented paths regardless of who's asking.
+- `/api/analytics` also 404s with `kh_`.
+- `/api/organizations` returns `401 Unauthorized` even with `kh_`, despite the auth doc listing "Organization management" as accepted on API keys. Either the path is different from what the doc implies, or org management really is session-only and the doc is wrong.
 - Error envelope on the wire is `{"error": "<string>"}`, not the documented `{"error": {"code": "...", "message": "..."}}`. Agents switching on `response.error.code` always hit the default branch.
 - No `X-RateLimit-*` or `Retry-After` headers observed across 21+ rapid requests. The documented 100 req/min limit is unobservable from the client side.
+
+## Confirmation that the silent-200 isn't an empty-org artifact
+
+Initial finding was made against an org that *happened* to be empty. To rule out "the empty array is just because there are no workflows," I retested after the user added a `kh_` key and an "Untitled 1" workflow:
+
+```
+$ curl "https://app.keeperhub.com/api/workflows" -H "Authorization: Bearer $ORG_KH_API_KEY"
+[{"id":"gfrf1m6s8sk3gppzqm83t","name":"Untitled 1",...}]   # populated, as expected
+
+$ curl "https://app.keeperhub.com/api/workflows"           # NO auth header
+[]                                                          # silently scoped to no-org instead of 401
+```
+
+The unauthenticated call should return 401 with the same body shape as `/api/integrations`. Instead it falls through to `[]` (the no-org scope), which a developer cannot distinguish from "your org has no workflows yet."
