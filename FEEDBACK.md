@@ -147,13 +147,30 @@ The MCP server's own `tools_documentation` response covers 14 tools and 3 chains
 
 An agent using the server's own self-documentation as ground truth gets less than half the picture.
 
-### B9d. `list_workflow` and `list_workflows` are semantic opposites
+### B9d. `list_workflow` and `list_workflows` are semantic opposites *(verified)*
 
-The names suggest a singular/plural variant pair. They aren't:
-- `list_workflows()` → enumerates workflows in the org (read)
-- `list_workflow(workflowId, slug, ...)` → publishes a workflow to the marketplace catalog (write — sets `isListed=true`)
+Tool descriptions, copied verbatim from the live MCP server's tool schema:
 
-Pick by name without reading the description and you'll either silently no-op (calling list_workflow with no args) or unintentionally publish private work to a public catalog. Rename one of them.
+```
+list_workflow:
+  "Publish a workflow to the KeeperHub marketplace catalog.
+   Sets isListed=true, assigns or preserves listedSlug,
+   refreshes listedAt. Other agents discover the listing via
+   search_workflows and invoke it via call_workflow."
+
+list_workflows:
+  "List all workflows for the authenticated organization.
+   Optionally filter by projectId or tagId."
+```
+
+Singular: marketplace publish (write — has side effects, sets `isListed=true`, public slug). Plural: org enumeration (read).
+
+The naming is dangerous because:
+1. The two tool names are visually one character apart.
+2. `list` is overwhelmingly read-coded in API conventions.
+3. There is no schema or warning at the call site that distinguishes them — agents picking by name autocomplete will hit the wrong one routinely.
+
+Suggested rename: `publish_workflow` / `unpublish_workflow` for the write pair; keep `list_workflows` for the read. Same engine, no naming trap.
 
 ### B10. `ai_generate_workflow` returns operation stream, not workflow object
 

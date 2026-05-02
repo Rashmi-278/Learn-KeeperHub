@@ -210,7 +210,12 @@ If you `JSON.parse` a route 404, you'll throw. If you switch on `response.error.
 
 **7. The MCP server's own self-documentation is incomplete.** `tools_documentation` describes 14 tools and 3 chains. The live server actually exposes **30 tools** (`list_workflows`, `list_workflow`, `get_workflow`, `create_workflow`, `update_workflow`, `delete_workflow`, `search_workflows`, `get_workflow_listing`, `update_workflow_listing`, `unlist_workflow`, `execute_workflow`, `call_workflow`, `get_execution_status`, `get_execution_logs`, `execute_contract_call`, `execute_protocol_action`, `execute_transfer`, `execute_check_and_execute`, `get_direct_execution_status`, `ai_generate_workflow`, `list_action_schemas`, `search_plugins`, `search_protocol_actions`, `get_plugin`, `search_templates`, `get_template`, `deploy_template`, `list_integrations`, `get_wallet_integration`, `tools_documentation`) and supports 21 chains. Building from `tools_documentation` as ground truth means missing the marketplace surface, the entire direct-execution family, and the only tool that documents schema landmines (`get_plugin`).
 
-**8. Two tools share a noun and do opposite things.** `list_workflows` enumerates the workflows in your org (read). `list_workflow` (singular) **publishes** a workflow to the marketplace catalog (write — sets `isListed=true`, assigns a public slug). An agent picking by name without reading descriptions will either silently no-op or unintentionally publish private work. Read the tool descriptions before you call.
+**8. Two tools share a noun and do opposite things — verified from the schema.** From the live tool descriptions:
+
+- `list_workflow` (singular): *"Publish a workflow to the KeeperHub marketplace catalog. Sets isListed=true, assigns or preserves listedSlug, refreshes listedAt."* — write op with public side effects.
+- `list_workflows` (plural): *"List all workflows for the authenticated organization."* — read.
+
+Visually identical at a glance, semantically opposite. An agent autocompleting on `list_` will hit the wrong one. Rename: `publish_workflow` / `unpublish_workflow`.
 
 **9. The featured "Wallet ETH Balance Watcher" template is broken.** When I called `get_template("qf8nxbxhdsqie2r3u1pb2")` on the canonical hello-world template — the one a new builder will inspect to learn the platform — it returned a workflow with four real defects:
 
