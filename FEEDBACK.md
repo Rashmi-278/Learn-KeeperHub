@@ -113,7 +113,49 @@ The `tips` array returned by `get_plugin` contains landmines that exist nowhere 
 
 These should be promoted to first-class public docs. Hiding them in a payload that only loads when an agent calls `get_plugin` means humans authoring through the UI never see them, and agents discover them by hitting validation errors.
 
-### B9. `ai_generate_workflow` returns operation stream, not workflow object
+### B9a. The featured "Wallet ETH Balance Watcher" template is broken
+
+The canonical hello-world template (`get_template("qf8nxbxhdsqie2r3u1pb2")`) ships with multiple defects:
+
+1. **Wrong action type for the labeled intent.** A node labeled "Send Discord Message" with description "Sends alert to configured Discord channel" and a `discordMessage` field has `actionType: "slack/send-message"`. The user thinks they're sending Discord; the runtime targets Slack with a field name Slack doesn't recognize.
+
+2. **`network: "sepolia"`** — a name, not the chain-ID string the `get_plugin` `tips` say is required (`"11155111"`). Either the schema rule is unenforced or this featured template fails on deploy. Either resolution is bad: silent rule drift, or a broken hero example.
+
+3. **Edge with `"targetHandle": null`** despite the same `tips` array saying "Do NOT use targetHandle." Tips are warnings; the engine accepts the field anyway.
+
+4. **Condition node carries both a deprecated `condition` string and a structured `conditionConfig`.** Migration drift left a string-mode `condition: "{{@…}} < 0.1"` next to the typed-rule shape. Which one wins on execution is unspecified.
+
+This isn't a hidden corner — it's the first template a new builder will look at to learn the platform. Until featured templates are linted against the `tips` rules, builders learn anti-patterns by example.
+
+### B9b. Undocumented `{{env.VAR}}` reference syntax
+
+Templates use `{{env.KH_WALLET_ADDRESS}}` and `{{env.ALERT_EMAIL}}` to reference environment variables. This dialect does not appear in:
+- The public docs
+- The `templateSyntax` block in `list_action_schemas`
+- The `tips` array in `get_plugin`
+- The `tools_documentation` MCP tool output
+
+A builder who copies a template but doesn't know about `{{env.…}}` will look for a config UI that doesn't exist, or hard-code values, or guess at the syntax. This is a 100% reproducible doc gap with a literal example in `get_template("qf8nxbxhdsqie2r3u1pb2")`.
+
+### B9c. `tools_documentation` MCP tool advertises a 14-tool surface; live server has 29
+
+The MCP server's own `tools_documentation` response covers 14 tools and 3 chains, omitting:
+- The marketplace surface entirely (`list_workflow`, `unlist_workflow`, `update_workflow_listing`, `get_workflow_listing`, `call_workflow`)
+- Direct-execution tools (`execute_contract_call`, `execute_protocol_action`, `execute_transfer`, `execute_check_and_execute`, `get_direct_execution_status`)
+- The most useful discovery tools (`search_protocol_actions`, `get_plugin` — the latter being the *only* place the schema landmines are documented)
+- 18 of 21 supported chains
+
+An agent using the server's own self-documentation as ground truth gets less than half the picture.
+
+### B9d. `list_workflow` and `list_workflows` are semantic opposites
+
+The names suggest a singular/plural variant pair. They aren't:
+- `list_workflows()` → enumerates workflows in the org (read)
+- `list_workflow(workflowId, slug, ...)` → publishes a workflow to the marketplace catalog (write — sets `isListed=true`)
+
+Pick by name without reading the description and you'll either silently no-op (calling list_workflow with no args) or unintentionally publish private work to a public catalog. Rename one of them.
+
+### B10. `ai_generate_workflow` returns operation stream, not workflow object
 
 Tool description implies it returns "a workflow definition ready to be created." Actual return is a newline-delimited stream of `setName`/`setDescription`/`addNode`/`addEdge`/`complete` operations. Caller has to apply them to construct the workflow object before passing to `create_workflow`. Documented behavior would be `create_workflow(generated_output)`; actual behavior requires a translation layer.
 

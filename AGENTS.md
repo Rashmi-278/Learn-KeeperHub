@@ -103,6 +103,15 @@ These come from the live `get_plugin` response and are not in the public docs:
 - **Built-in time variables** live under the `__system` namespace: `{{@__system:System.unixTimestamp}}` (seconds, matches `block.timestamp`), `{{@__system:System.unixTimestampMs}}`, `{{@__system:System.isoTimestamp}}`.
 - **Every trigger emits `triggeredAt`** as an ISO string. Reference as `{{@triggerId:Label.data.triggeredAt}}`.
 
+### Two reference-syntax dialects (only one is documented)
+
+- **Step references**: `{{@nodeId:Label.field}}` — documented in `get_plugin`.
+- **Environment references**: `{{env.VAR_NAME}}` — **not** documented anywhere in the public docs or `get_plugin`. Discoverable only by inspecting featured templates (`get_template` on `qf8nxbxhdsqie2r3u1pb2` shows `{{env.KH_WALLET_ADDRESS}}` and `{{env.ALERT_EMAIL}}`). The values come from per-org or per-user environment settings configured in the dashboard.
+
+### Edge `type` field
+
+Edges have a `type` property the schema doesn't enumerate. Observed values: `"default"` (used by `ai_generate_workflow`) and `"animated"` (used by featured templates). Whether this affects execution or only rendering is undocumented; pick `"default"` for programmatic creation until further clarification.
+
 ### Wallets
 
 KeeperHub wallets are **Para MPC** — non-custodial, keys split between the user and Para, neither can sign alone. `get_wallet_integration` returns the integration ID you bind to write actions.
