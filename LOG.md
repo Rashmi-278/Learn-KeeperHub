@@ -120,6 +120,30 @@ Agents parsing JSON will crash on route 404s. Error `code` enums don't exist.
 - Hung curl loop on rapid-fire `/workflows` requests (21st req hung past 10s timeout). Could be coincidence; could be a soft throttle that hangs instead of returning 429. Worth re-testing.
 - `pkill` was needed to unstick the hung curl before the second probe batch.
 
+### Session 3 — get_plugin / get_template / tools_documentation deep-dive
+
+Used the OAuth-MCP path (no kh_ key needed for MCP) to introspect three meta tools and the canonical hello-world template. The most important findings of the entire engagement.
+
+**Live MCP tool count: 30 (not 19).** Public docs claim 19 tools including `validate_plugin_config`. Live server has 30 (after also catching `search_workflows` which I missed earlier) and **does not include `validate_plugin_config`**. The "safe authoring order" in AGENTS.md was wrong — corrected to drop the validate step and add `get_plugin` as the canonical schema source.
+
+**`get_plugin` is the single most important tool, and it's not in the official authoring guide.** Its `tips` array contains schema rules that exist nowhere else: chain-ID format, Condition operator symbols, `leftOperand`/`rightOperand` field names, Database Query templating, `tokenConfig` shape, edge `sourceHandle`-only rule, the `__system` namespace, the `triggeredAt` field. Every one of these is a landmine that fails validation if you guess.
+
+**`tools_documentation` advertises a 14-tool surface; the live server has 30.** The MCP server's own self-doc misses the marketplace tools, the direct-execution family, `get_plugin` itself, and 18 of 21 chains. Bootstrapping from `tools_documentation` gives an agent less than half the platform.
+
+**`list_workflow` and `list_workflows` are semantic opposites, not variants.** Plural enumerates org workflows (read). Singular publishes to the marketplace (write). Naming-collision footgun.
+
+**`get_template("qf8nxbxhdsqie2r3u1pb2")` — the canonical "Wallet ETH Balance Watcher" — is broken in four ways:**
+- Discord-labeled node with `actionType: "slack/send-message"`
+- `network: "sepolia"` instead of the chain-ID string
+- Edge with `targetHandle: null` (forbidden by tips)
+- Condition node with both legacy `condition` string and structured `conditionConfig`
+
+**A second reference dialect exists and is fully undocumented.** `{{env.VAR_NAME}}` (e.g. `{{env.KH_WALLET_ADDRESS}}`) is in featured templates but absent from public docs, `templateSyntax`, `tips`, and `tools_documentation`. Discoverable only by reading templates.
+
+### Bumps this round
+
+- The KeeperHub MCP server **disconnected** mid-session (system reminder confirms `mcp__keeperhub__*` tools are no longer available). Cause unknown — could be an OAuth token TTL hit (1h access token), could be a server-side restart. Affects nothing already captured but blocks further live MCP work in this session until reconnected via `/mcp`.
+
 ### Open / next
 
 - Verify the `[needs hands-on]` items in `FEEDBACK.md` with a real run:

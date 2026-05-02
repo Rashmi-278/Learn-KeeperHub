@@ -208,6 +208,21 @@ If you `JSON.parse` a route 404, you'll throw. If you switch on `response.error.
 
 **6. Two MCP discovery calls overflow client tool-output buffers.** `search_templates` with no args returned 797k characters (85 templates with full node graphs). `list_action_schemas` returned 365k characters (396 actions). On Claude Code, both got auto-saved to disk and required `jq` to consume. Pass narrower filters (`category`, `query`) up front, or be ready to read from a file.
 
+**7. The MCP server's own self-documentation is incomplete.** `tools_documentation` describes 14 tools and 3 chains. The live server actually exposes **30 tools** (`list_workflows`, `list_workflow`, `get_workflow`, `create_workflow`, `update_workflow`, `delete_workflow`, `search_workflows`, `get_workflow_listing`, `update_workflow_listing`, `unlist_workflow`, `execute_workflow`, `call_workflow`, `get_execution_status`, `get_execution_logs`, `execute_contract_call`, `execute_protocol_action`, `execute_transfer`, `execute_check_and_execute`, `get_direct_execution_status`, `ai_generate_workflow`, `list_action_schemas`, `search_plugins`, `search_protocol_actions`, `get_plugin`, `search_templates`, `get_template`, `deploy_template`, `list_integrations`, `get_wallet_integration`, `tools_documentation`) and supports 21 chains. Building from `tools_documentation` as ground truth means missing the marketplace surface, the entire direct-execution family, and the only tool that documents schema landmines (`get_plugin`).
+
+**8. Two tools share a noun and do opposite things.** `list_workflows` enumerates the workflows in your org (read). `list_workflow` (singular) **publishes** a workflow to the marketplace catalog (write — sets `isListed=true`, assigns a public slug). An agent picking by name without reading descriptions will either silently no-op or unintentionally publish private work. Read the tool descriptions before you call.
+
+**9. The featured "Wallet ETH Balance Watcher" template is broken.** When I called `get_template("qf8nxbxhdsqie2r3u1pb2")` on the canonical hello-world template — the one a new builder will inspect to learn the platform — it returned a workflow with four real defects:
+
+- A node labeled "Send Discord Message" with description "Sends alert to configured Discord channel" and a `discordMessage` field has `actionType: "slack/send-message"`. Discord-on-the-tin, Slack-on-the-wire.
+- `network: "sepolia"` — a name, not the chain-ID string the schema explicitly requires.
+- An edge sets `targetHandle: null` despite the schema's own `tips` array saying "Do NOT use targetHandle."
+- The Condition node carries both a deprecated `condition` string *and* a structured `conditionConfig` side by side. Migration drift, with no clarity on which wins at execution time.
+
+Builders learn anti-patterns by example. Until featured templates are linted against the schema rules they advertise, this is the wrong place to start a tour.
+
+**10. There are two reference syntaxes and only one is documented.** Step references use `{{@nodeId:Label.field}}` — covered in the public docs and in `get_plugin`'s `tips`. **Environment references use `{{env.VAR_NAME}}`** (e.g. `{{env.KH_WALLET_ADDRESS}}`, `{{env.ALERT_EMAIL}}`) — visible in featured templates, mentioned **nowhere** in the public docs, the `templateSyntax` block, the `tips` array, or `tools_documentation`. A builder who copies a template runs into `{{env.…}}`, looks for the env config UI, finds nothing obvious, and either guesses or hard-codes. This is fixable with one paragraph in the docs.
+
 These aren't deal-breakers. They're the kind of friction every platform has at this stage. The difference is whether the maintainers want them written down — and the KeeperHub team explicitly asked for honest feedback, which is why this article exists in this form.
 
 ---
@@ -257,16 +272,27 @@ What needs the most love is the **edges** — error envelopes, REST route parity
 ## The 30-line version of this article
 
 ```
-1.  Get a kh_ key (NOT wfb_) from app.keeperhub.com.
+1.  Get a kh_ key (NOT wfb_) from app.keeperhub.com (Organisation tab).
 2.  claude mcp add --transport http keeperhub https://app.keeperhub.com/mcp
 3.  /mcp  → OAuth.
-4.  search_templates(query: "safe")     # before authoring, look here
-5.  ai_generate_workflow(prompt: "...") # describe the intent
-6.  create_workflow(...)                # deploy the JSON it returns
-7.  update_workflow(enabled: true)      # turn it on
-8.  execute_workflow(id) → poll status → read logs
-9.  When something breaks: get_execution_logs is your only friend.
-10. Reference syntax is {{@nodeId:Label.field}}.
+4.  Call get_plugin first — its `tips` array has rules that exist
+    nowhere else (chain ID format, Condition operator symbols,
+    Database Query templating, edge sourceHandle constraints).
+5.  search_templates(query: "...")  # before authoring, look here.
+    But read the JSON before deploying — featured templates ship
+    with real bugs (wrong actionType, missing chain ID, etc.).
+6.  ai_generate_workflow(prompt: "...") returns a stream of ops, not
+    a workflow. Apply the ops; expect to fix at least the network
+    field (it picks "Ethereum" instead of "1").
+7.  create_workflow(nodes, edges) — server-side validation surfaces
+    remaining errors. There is no validate_plugin_config tool.
+8.  update_workflow(enabled: true) → execute_workflow(id) → poll
+    get_execution_status → get_execution_logs on failure.
+9.  Step refs: {{@nodeId:Label.field}}. Env refs: {{env.VAR_NAME}}
+    (the second one is undocumented; learn it from templates).
+10. ai_generate_workflow doesn't add state-comparison logic. If your
+    intent is "alert on change," wire a Database Query + Condition
+    yourself.
 ```
 
 That's the build loop. The rest is taste.
