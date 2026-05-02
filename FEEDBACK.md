@@ -79,9 +79,45 @@ Workflow creation isn't reachable via REST at the documented path. MCP `create_w
 
 Docs state 100 req/min for authed clients. Across 21 rapid `GET /api/workflows` calls every response was 200 with no `X-RateLimit-*` or `Retry-After` header. Clients have no way to back off proactively, and (anecdotally) one request hung past a 10s timeout instead of returning 429 — possibly a soft throttle masquerading as latency.
 
-### B6. `chains` array contains a duplicate
+### B6. `chains` array contains a real duplicate
 
-`Solana Devnet` appears twice in the `list_action_schemas` response (one entry per casing variant).
+The `chains` array returned by `list_action_schemas` and `get_plugin` lists "Solana Devnet" twice — with **different** chain IDs (`102` and `103`) but identical name and explorer URL. Not a casing artifact, an actual data bug:
+
+```json
+{ "chainId": 103, "name": "Solana Devnet", "explorerUrl": "https://solscan.io/?cluster=devnet" },
+{ "chainId": 102, "name": "Solana Devnet", "explorerUrl": "https://solscan.io/?cluster=devnet" }
+```
+
+Pickers/UIs that key off the name will collide; agents that pass the chain ID will silently target whichever is canonical (which is undocumented).
+
+### B7. MCP tool count drift
+
+Public docs claim **19 tools** including `validate_plugin_config`. Live MCP server exposes **29 tools** and **does not include `validate_plugin_config`**. Concrete disagreement:
+
+- Docs-listed but missing: `validate_plugin_config`
+- Live but undocumented: `call_workflow`, `execute_check_and_execute`, `execute_contract_call`, `execute_protocol_action`, `execute_transfer`, `get_direct_execution_status`, `get_template`, `get_workflow_listing`, `update_workflow_listing`, `unlist_workflow`, `search_protocol_actions`, `tools_documentation`, `list_workflow` (a singular variant alongside `list_workflows`)
+
+Agents that consult the public docs to decide which tools to call will pick a non-existent one and skip several useful ones.
+
+### B8. Critical schema rules live only inside `get_plugin` responses
+
+The `tips` array returned by `get_plugin` contains landmines that exist nowhere in the public docs:
+
+- `network` is a chain-ID string (`"1"`), not a name (`"Ethereum"`)
+- Condition operators are exact symbols (`===`, `<`); `equals`/`less_than` will fail
+- Condition rules use `leftOperand`/`rightOperand`, not `field`/`value`
+- Database Query must inline `{{@…}}` refs into SQL; `$1`/`$2` placeholders silently fail
+- `tokenConfig` is a JSON-stringified object with a specific `mode`/`customToken` shape
+- Edges use `sourceHandle` only; `targetHandle` is forbidden
+- Every trigger emits `triggeredAt` (ISO timestamp)
+
+These should be promoted to first-class public docs. Hiding them in a payload that only loads when an agent calls `get_plugin` means humans authoring through the UI never see them, and agents discover them by hitting validation errors.
+
+### B9. `ai_generate_workflow` returns operation stream, not workflow object
+
+Tool description implies it returns "a workflow definition ready to be created." Actual return is a newline-delimited stream of `setName`/`setDescription`/`addNode`/`addEdge`/`complete` operations. Caller has to apply them to construct the workflow object before passing to `create_workflow`. Documented behavior would be `create_workflow(generated_output)`; actual behavior requires a translation layer.
+
+Additionally, the operations the generator emits frequently violate the schema rules in §B8 — most reliably the `network: "Ethereum"` mistake — meaning even after applying the ops you get a workflow that won't pass server validation.
 
 ## 4. Feature requests
 

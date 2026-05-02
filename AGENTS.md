@@ -63,28 +63,51 @@ claude mcp add --transport http keeperhub https://app.keeperhub.com/mcp \
 
 Or use the **Claude Code plugin**, which installs the MCP server and runs `/keeperhub:login` for you.
 
-### MCP tools at a glance
+### MCP tools (verified live, 2026-05-02)
 
-- **Workflows** — `list_workflows`, `get_workflow`, `create_workflow`, `update_workflow`, `delete_workflow`
-- **Execution** — `execute_workflow`, `get_execution_status`
-- **Logs** — `get_execution_logs` (includes tx hashes)
-- **AI authoring** — `ai_generate_workflow` (natural-language → workflow)
-- **Discovery** — `list_action_schemas`, `search_plugins`, `get_plugin`, `validate_plugin_config`
+The public docs say 19 tools. The live server exposes **29**. Grouped:
+
+- **Workflows** — `list_workflows`, `list_workflow` (singular variant, behavior unclear), `get_workflow`, `create_workflow`, `update_workflow`, `delete_workflow`
+- **Marketplace listing** — `get_workflow_listing`, `update_workflow_listing`, `unlist_workflow`
+- **Execution** — `execute_workflow`, `call_workflow`, `get_execution_status`, `get_execution_logs`
+- **Direct execution** (no workflow needed) — `execute_contract_call`, `execute_protocol_action`, `execute_transfer`, `execute_check_and_execute`, `get_direct_execution_status`
+- **AI authoring** — `ai_generate_workflow`
+- **Discovery** — `list_action_schemas`, `search_plugins`, `search_protocol_actions`, `get_plugin`, `get_template`
 - **Templates** — `search_templates`, `deploy_template`
 - **Integrations** — `list_integrations`, `get_wallet_integration`
-- **Meta** — `tools_documentation`, `resources` (`keeperhub://workflows[/{id}]`)
+- **Meta** — `tools_documentation`
+
+There is **no `validate_plugin_config` tool** despite the docs claiming one. The closest substitute is reading `get_plugin` and matching field-by-field before calling `create_workflow`.
 
 ### Authoring pattern
 
 When building a workflow programmatically, the safe order is:
 
-1. `list_action_schemas` — find the action types you need
-2. `get_plugin` for any non-trivial action — read its parameter shape
-3. `validate_plugin_config` on each action before assembling
-4. `create_workflow` with nodes and edges
+1. `list_action_schemas` (or `search_protocol_actions` for DeFi) — find the right `actionType`
+2. `get_plugin(pluginType)` — read the literal `requiredFields` / `optionalFields` and consume the `tips` array (it contains landmines that aren't documented anywhere else)
+3. Build nodes and edges by hand; match field names exactly
+4. `create_workflow` — server-side validation surfaces remaining errors
 5. `execute_workflow` → poll `get_execution_status` → `get_execution_logs` on failure
 
-Skipping schema discovery is the fastest way to ship an invalid workflow.
+### Landmines to know before authoring
+
+These come from the live `get_plugin` response and are not in the public docs:
+
+- **`network` is a chain ID string**, not a name. `"1"` for Ethereum mainnet, `"11155111"` for Sepolia, `"8453"` for Base. Passing `"Ethereum"` will fail validation. (`ai_generate_workflow` itself gets this wrong.)
+- **`actionType` must match exactly.** `"web3/check-balance"` works; `"Get Wallet Balance"` does not.
+- **Condition operators are exact symbols.** `===`, `!==`, `<`, `>`, `<=`, `>=` — not `equals`, `less_than`, etc. Each rule and group needs a unique `id` field (nanoid/UUID).
+- **Condition rule fields are `leftOperand` and `rightOperand`** — not `field`/`value`.
+- **Database Query inlines refs into SQL directly.** `SELECT * FROM t WHERE id = '{{@step:Step.id}}'`. Do **not** use `$1`/`$2` placeholders with a separate `dbParams` array — the UI ignores that format.
+- **`tokenConfig` is a JSON-stringified object** with shape `{"mode":"custom","customToken":{"address":"0x...","symbol":"USDC"}}` — not a flat `{address, symbol, decimals}`.
+- **Edges:** use `sourceHandle` only. Set it to `'true'`/`'false'` on Condition nodes and `'loop'`/`'done'` on For Each. **Never** use `targetHandle`.
+- **Built-in time variables** live under the `__system` namespace: `{{@__system:System.unixTimestamp}}` (seconds, matches `block.timestamp`), `{{@__system:System.unixTimestampMs}}`, `{{@__system:System.isoTimestamp}}`.
+- **Every trigger emits `triggeredAt`** as an ISO string. Reference as `{{@triggerId:Label.data.triggeredAt}}`.
+
+### Wallets
+
+KeeperHub wallets are **Para MPC** — non-custodial, keys split between the user and Para, neither can sign alone. `get_wallet_integration` returns the integration ID you bind to write actions.
+
+Proxy contracts (EIP-1967, EIP-1822, Diamond/EIP-2535) are auto-detected and the implementation ABI is fetched. Verified contracts get auto-ABI from the block explorer; unverified contracts require manual ABI.
 
 ## REST API surface
 
