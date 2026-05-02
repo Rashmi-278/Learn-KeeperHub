@@ -32,11 +32,56 @@ These are concrete URLs that should work and didn't, or content that's reference
 
 ## 3. Reproducible bugs
 
-`[needs hands-on]` — none observed from doc reading alone. Will populate after a real integration session. Concrete things worth probing:
+These were verified with `curl` against `https://app.keeperhub.com/api` on 2026-05-02. Every finding has the literal request that surfaced it.
 
-- Does `delete_workflow` with `force: true` actually cascade across active executions, or just queued ones?
-- Does `update_workflow` with partial node arrays merge or replace? (The docs don't say, and either behavior is defensible — but agents need to know.)
-- Does `execute_workflow` honor the workflow's `enabled` state, or run regardless? (Both are reasonable; pick one and document it.)
+### B1. `GET /api/workflows` returns `[]` with **no auth at all** *(severity: high — silent failure)*
+
+```
+$ curl -i https://app.keeperhub.com/api/workflows
+HTTP/2 200
+content-type: application/json
+
+[]
+```
+
+Same `[]` is returned for a valid `wfb_` key, a bogus `kh_obviouslyfake` bearer, and an empty org. Four different auth states, one indistinguishable response. A developer who mistypes their key cannot tell their request was unauthenticated.
+
+**Expected:** `401 Unauthorized` when no/invalid bearer is present, matching the behavior of `/api/integrations` and `/api/user`.
+
+### B2. Documented response envelope is wrong
+
+Docs say success is `{"data": {...}}` and errors are `{"error": {"code": "...", "message": "..."}}`. Real responses:
+
+| Endpoint | Actual body | Documented body |
+|---|---|---|
+| `GET /workflows` (success) | `[]` | `{"data": []}` |
+| `GET /chains` (success) | `[{...}, ...]` | `{"data": [{...}, ...]}` |
+| `GET /integrations` (401) | `{"error":"Unauthorized"}` | `{"error":{"code":"...","message":"..."}}` |
+| `GET /workflows/missing` (404) | `{"error":"Workflow not found"}` | `{"error":{"code":"...","message":"..."}}` |
+| `GET /no-such-route` (404) | `<!DOCTYPE html>...` Next.js error page | JSON of any shape |
+
+Three different error shapes (flat string, no `code` enum, raw HTML for unknown routes). Agents writing `response.error.code` will get `undefined`; agents calling `JSON.parse` on a 404 route will throw.
+
+### B3. Documented endpoints that 404
+
+All return HTML 404 with a `wfb_` key. (Should be retested with a `kh_` key — but route 404s shouldn't depend on auth scope.)
+
+- `/api/executions` (the executions resource the docs name)
+- `/api/runs`, `/api/workflow-runs`, `/api/v1/workflows`
+- `/api/analytics`
+- `/api/execute` (the "direct execution" endpoint the docs explicitly advertise)
+
+### B4. `POST /api/workflows` → 405 Method Not Allowed
+
+Workflow creation isn't reachable via REST at the documented path. MCP `create_workflow` works fine, so the capability exists — but the REST mount appears to be missing or moved.
+
+### B5. No rate-limit observability
+
+Docs state 100 req/min for authed clients. Across 21 rapid `GET /api/workflows` calls every response was 200 with no `X-RateLimit-*` or `Retry-After` header. Clients have no way to back off proactively, and (anecdotally) one request hung past a 10s timeout instead of returning 429 — possibly a soft throttle masquerading as latency.
+
+### B6. `chains` array contains a duplicate
+
+`Solana Devnet` appears twice in the `list_action_schemas` response (one entry per casing variant).
 
 ## 4. Feature requests
 

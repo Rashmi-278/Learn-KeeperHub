@@ -80,6 +80,46 @@ Connected via `/mcp` (OAuth) and ran four discovery calls.
 - **Two MCP responses overflowed Claude Code's tool-output cap.** `search_templates` (no args) returned **797k chars** for 85 templates; `list_action_schemas` returned **365k chars**. Both got auto-saved to disk and required `jq` to consume. This is a real DX problem for any agent building against this MCP server — burning context just to enumerate what's available.
 - **`Solana Devnet` appears twice** in the chains list (once with capital D, once apparently identical). Minor, but a dedupe bug in the schema response.
 
+### Session 2 — REST probe (real evidence, not speculation)
+
+Sourced `KH_API_KEY` from `.env` and curl'd the REST API directly. The key turned out to be `wfb_` prefix (user-scope), not `kh_` — which is itself the most teachable bug here. We probed anyway because some surprises are scope-independent.
+
+**Auth + ambiguity (the worst finding).** `GET /workflows` returns HTTP 200 `[]` for:
+- valid `wfb_` key
+- bogus `kh_obviouslyfake` bearer
+- **no `Authorization` header at all**
+
+Three different "auth" states, identical empty success response. A new builder mistypes their key, sees no errors, and concludes their org is empty. This is silent failure of the worst kind.
+
+**Documented response envelope is wrong.** Docs claim `{"data": {...}}` / `{"error": {"code", "message"}}`. Reality:
+- Success: bare array (`[]` from `/workflows`, `[{...}, ...]` from `/chains`) — no `data` wrapper
+- 401: `{"error":"Unauthorized"}` (flat string)
+- 404 (resource): `{"error":"Workflow not found"}` (flat string)
+- 404 (route): `<!DOCTYPE html>...` Next.js error page
+
+Agents parsing JSON will crash on route 404s. Error `code` enums don't exist.
+
+**Documented endpoints that don't exist.** All return HTML 404:
+- `/api/executions` — the documented executions resource
+- `/api/runs`, `/api/workflow-runs` — common alternates
+- `/api/v1/workflows`
+- `/api/analytics`
+- `/api/execute` — the documented "direct execution" endpoint
+
+**`POST /api/workflows` → 405 Method Not Allowed.** REST does not expose workflow creation at the documented path. Creation appears to be MCP-only (or via an undocumented internal route the dashboard uses).
+
+**No rate-limit headers anywhere.** 21+ rapid requests in a tight loop, every one HTTP 200, zero `X-RateLimit-*` or `Retry-After`. The documented "100 req/min" limit may exist but is unobservable to clients — they have to guess when to back off.
+
+**Scope wall confirmed for `wfb_`:** `/integrations`, `/projects`, `/tags`, `/api-keys`, `/organizations`, `/user` all return 401. `/workflows`, `/workflows/{id}`, `/chains` are reachable.
+
+**`/chains` works for any scope** and returns full metadata (chainId, RPC type, explorer URLs, testnet flag).
+
+### Bumps this round
+
+- The `.env` had `wfb_` not `kh_`. The platform sells this as a documented restriction, but the *cost* of getting it wrong is a silent empty list, not an error — that's the bug, not the user's typo.
+- Hung curl loop on rapid-fire `/workflows` requests (21st req hung past 10s timeout). Could be coincidence; could be a soft throttle that hangs instead of returning 429. Worth re-testing.
+- `pkill` was needed to unstick the hung curl before the second probe batch.
+
 ### Open / next
 
 - Verify the `[needs hands-on]` items in `FEEDBACK.md` with a real run:
