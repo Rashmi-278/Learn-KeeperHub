@@ -144,6 +144,60 @@ Used the OAuth-MCP path (no kh_ key needed for MCP) to introspect three meta too
 
 - The KeeperHub MCP server **disconnected** mid-session (system reminder confirms `mcp__keeperhub__*` tools are no longer available). Cause unknown — could be an OAuth token TTL hit (1h access token), could be a server-side restart. Affects nothing already captured but blocks further live MCP work in this session until reconnected via `/mcp`.
 
+### Session 4 — three guardians live, schema field-name lie discovered
+
+Deployed three Safe-security guardians against the user's ENS multisig (`0x91c32893216dE3eA0a55ABb9851f581d4503d39b`) on Ethereum mainnet, with a real Discord webhook integration (`9k7jxusbfv6ghljnbfzc8`).
+
+| Guardian | Workflow ID | Source template | Live? |
+|---|---|---|---|
+| Threshold | `vzhk455chprgjm1ccqzwa` | `5ixuu7ohjcqf5sqi0tppw` | ✅ enabled |
+| Owner Change | `oigd9650le4ki8peda9xd` | `lgbtjeyzz9wlf4yqf4t8s` | ✅ enabled |
+| Module Install | `b9z9utqbr1oqt5tx1pwvt` | `3sbp3tdt6sd1ypit2zh94` | ✅ enabled |
+| Guard Change | — | `2kljmnezos6yhqh5eydt2` | ⛔ skipped (too broken) |
+
+**The biggest finding of the entire engagement: the schema lies about output field names.**
+
+Verified end-to-end with two manual smoke tests on the threshold guardian. First test used the schema-documented field name `.owners` — execution succeeded, Discord delivered, but the message body dropped the owner list silently. Second test used `.result` (the runtime's actual emitted name) — same workflow, same node, populated correctly.
+
+The pattern holds across the Safe family:
+- `safe/get-owners` schema says `outputFields.owners` → runtime emits `output.result`
+- `safe/get-threshold` schema says `outputFields.threshold` → runtime emits `output.result`
+- `safe/get-modules-paginated` schema says `outputFields.array`, `outputFields.next` → runtime emits wrapped: `output.result.array`, `output.result.next`
+
+Every Safe featured template references the schema names. **Every Safe featured template would deliver alerts with empty data sections.** The defect is invisible until you actually fire the workflow and read the rendered message — most builders never get there in dev because Event triggers don't fire under manual test.
+
+**Why Guard Change Alert was skipped.** Inspecting `get_template("2kljmnezos6yhqh5eydt2")` revealed the template is structurally broken beyond patch-friendliness:
+- Trigger `eventName: ""` (empty — would never fire)
+- Trigger `contractAddress: ""` (empty)
+- Three Condition nodes; only one has a properly-structured `conditionConfig`, the other two carry only the deprecated string-mode `condition` field
+- A "PagerDuty Incident" webhook node has `routing_key: "YOUR_PAGERDUTY_KEY"` as literal placeholder text
+- Description claims "Alerts via Discord, email, and PagerDuty" but no email node exists
+
+That template needs a rebuild from the original event ABI plus a from-scratch wiring of three condition branches. Skipped this iteration; flagged for a follow-up.
+
+**Defect inventory across the four featured Safe templates** (each one separately verified by reading template JSON):
+
+| Defect | Threshold | Owner | Module | Guard |
+|---|---|---|---|---|
+| Sepolia chain ID | ✗ | ✗ | ✗ | ✗ |
+| Placeholder address (or empty) | ✗ | ✗ | ✗ (empty) | ✗ (empty) |
+| Read-node `label` empty | ✗ | ✗ ×2 | ✗ | n/a |
+| Discord node missing `integrationId` | ✗ | ✗ | ✗ | ✗ |
+| Discord references wrong output field | ✗ | ✗ ×2 | ✗ | ✗ |
+| Trigger `eventName` empty | — | — | — | ✗ |
+| `conditionConfig` missing on Condition nodes | — | — | — | ✗ ×2 |
+| Hardcoded credential placeholder | — | — | — | ✗ |
+| Description-vs-implementation drift | — | — | ✗ | ✗ |
+
+That's a lot of bugs in security-critical templates. Sample size: every featured Safe template I touched.
+
+**`deploy_template` ignores its `name` parameter.** Verified twice — passed `name: "ENS Multisig: ..."`, both clones came back as `"<source name> (Copy)"`. Documented in B9-pre.
+
+### Bumps this round
+
+- Module Install template `deploy_template` call timed out once on first try; succeeded on retry. Server intermittence rather than a hard bug.
+- One unintended Discord post (the empty-owners smoke test) ended up in the user's channel before I caught the field-name lie. Logged here so we don't claim it was clean.
+
 ### Open / next
 
 - Verify the `[needs hands-on]` items in `FEEDBACK.md` with a real run:

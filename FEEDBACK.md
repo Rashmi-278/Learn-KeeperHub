@@ -122,6 +122,36 @@ deploy_template({ templateId: "5ixuu7ohjcqf5sqi0tppw", name: "ENS Multisig: Thre
 
 The optional `name` parameter is documented in the schema but discarded by the implementation. The clone always keeps the source name with `(Copy)` appended. Either implement the rename or remove the parameter from the schema; right now it's dead config.
 
+### B9-critical. Schema-declared output field names don't match runtime emissions
+
+**Verified live with two execution traces.** The `get_plugin` schema declares output field names that the runtime does not emit:
+
+| Action | Schema declares | Runtime actually emits | Featured-template references |
+|---|---|---|---|
+| `safe/get-owners` | `outputFields.owners` | `output.result` | `.owners` ❌ (resolves empty) |
+| `safe/get-threshold` | `outputFields.threshold` | `output.result` | `.threshold` ❌ |
+| `safe/get-modules-paginated` | `outputFields.array`, `outputFields.next` | `output.result.array`, `output.result.next` | `.array` ❌ |
+
+Live evidence — same workflow execution, same `safe/get-owners` node:
+
+```
+node output (from execution log):
+  { "result": ["0x75d9...", "0xc027...", ...], "success": true, ... }
+
+discord message after rendering {{@<id>:Safe: Get Owners.owners}}:
+  "Current Owners: "         ← empty
+
+discord message after rendering {{@<id>:Safe: Get Owners.result}}:
+  'Current Owners: ["0x75d9...","0xc027...",...]'   ← populated
+```
+
+**Implications:**
+1. Every featured Safe template that references `.owners`, `.threshold`, `.array`, or `.next` is silently broken — the alert delivers, but the data section is empty. Operators get a "threshold changed" ping with no idea what it changed to.
+2. The `get_plugin` `outputFields` map is documentation, not contract. Agents must consult execution logs (or `execute_protocol_action` output) to learn the real shapes.
+3. Multi-output reads (`get-modules-paginated`) wrap fields under `result.<name>`; single-output reads collapse to `result`. The schema doesn't surface this distinction.
+
+Fix path: the runtime should either emit the documented field names, or the `outputFields` map should be regenerated from runtime output shapes. Until then, every template needs hand-correction of references *plus* an integration ID *plus* labels *plus* a chain ID.
+
 ### B9-extra. The "Threshold Change Alert" featured template has the same family of defects as the "Wallet ETH Balance Watcher"
 
 Verified by deploying it live (`get_template("5ixuu7ohjcqf5sqi0tppw")` and `deploy_template` of same):

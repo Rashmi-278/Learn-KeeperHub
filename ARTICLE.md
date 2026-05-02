@@ -332,6 +332,39 @@ update_workflow({
 
 Then a second call to flip `enabled: true`. Workflow is now live.
 
+### The schema lies about output field names — found by running it
+
+Before the threshold guardian could go live, I wanted end-to-end confirmation that Discord delivery worked. So I temporarily swapped the trigger from `Event` to `Manual`, simplified the Discord message, and fired it.
+
+The execution succeeded — `status: "success"`, `messageId: "sent"`. But the message that landed in Discord said:
+
+```
+Current Owners:
+```
+
+…with nothing after the colon. The `safe/get-owners` node clearly returned 4 owner addresses (visible in the execution log). The Discord render dropped them all.
+
+The reason is documented in `get_plugin` and contradicted by the runtime:
+
+| `safe/get-owners` | Schema says | Runtime emits |
+|---|---|---|
+| Output field name | `owners` | `result` |
+
+The featured template (and every other featured Safe template I deployed) references `{{@<id>:…Safe: Get Owners.owners}}`. The reference resolves to undefined → empty string → silent data loss. The alert delivers, but operators receive a "something happened" ping with the *actual data section blank*.
+
+I re-fired with `.result` instead of `.owners` and got the populated list:
+
+```
+Current Owners (.result): ["0x75d91395CD36f24f990bbdE69993cB20B96EcFa6",
+                            "0xc02771315d0958F23a64140160E78ECB9bB8614e",
+                            "0x0B8B1ed2594B36aedbF44DD17674f4686eDFeE6B",
+                            "0x70B8769B09aF7447886620c20854c8B9119b5FeE"]
+```
+
+Same pattern for `safe/get-threshold` (schema: `threshold`, runtime: `result`) and `safe/get-modules-paginated` (schema: `array`/`next`, runtime: wrapped under `result.array`/`result.next`).
+
+So the patch list grows: every featured template needs the field-name reference rewritten on top of the address, chain, label, and integrationId fixes. Until the runtime starts emitting the documented field names — or the `outputFields` map starts reflecting reality — agents authoring against the schema will produce silently broken alerts.
+
 ### Smoke-testing the read against the live Safe
 
 `execute_workflow` on an Event-triggered workflow can't manufacture an on-chain event, so it isn't a useful smoke test for the trigger. But you can verify the read half independently with `execute_protocol_action`:
