@@ -118,18 +118,47 @@ For this tour we'll author something small but real: **a Safe multisig guardian 
 
 ### Path A — `ai_generate_workflow`
 
-Plain English in, workflow JSON out:
+Plain English in:
 
 ```
 ai_generate_workflow(
-  prompt: "Watch Safe multisig 0xABC… on Ethereum mainnet.
-           Ping our Discord webhook whenever an owner is added,
-           the signature threshold is changed, or a module is enabled.
-           Include the event details in the message."
+  prompt: "Watch a Safe multisig on Ethereum mainnet. Whenever an owner
+           is added, the signature threshold is changed, or a module is
+           enabled, send a Discord alert with the event details."
 )
 ```
 
-The model picks triggers, drops in the right Safe action schemas, threads outputs into the Discord message body via `{{@…}}` references, and returns a complete workflow you can `create_workflow` directly. This is the differentiated story: you describe intent, the agent produces a typed, validated workflow against a 396-action schema library.
+What you get back is *not* a finished workflow object. It's a **stream of operations**, newline-delimited JSON, ending in `{"type":"complete"}`:
+
+```jsonc
+{"type":"operation","operation":{"op":"setName","name":"Safe Multisig Monitor Workflow"}}
+{"type":"operation","operation":{"op":"addNode","node":{"id":"trigger-monitor-events","type":"trigger","data":{"label":"Monitor Safe Events","config":{"triggerType":"Webhook"},...}}}}
+{"type":"operation","operation":{"op":"addNode","node":{"id":"check-owners","type":"action","data":{"config":{"actionType":"safe/get-owners","network":"Ethereum","contractAddress":"Your safe multisig address"},...}}}}
+// ... two more reads (safe/get-threshold, safe/get-modules-paginated)
+// ... three discord/send-message nodes
+// ... six addEdge ops fanning trigger → reads → discords
+{"type":"complete"}
+```
+
+Caller has to apply these operations to build the workflow object — `create_workflow` doesn't take this stream directly. This isn't documented anywhere I could find, and it's the first place a real builder gets stuck. (The KeeperHub dashboard appears to consume the same stream when you author by chat in-app.)
+
+**Three real problems with the generated workflow as-is.** I'm leaving these in because they're the kind of thing you'd actually catch in review:
+
+1. **The trigger is `Webhook`, not `Event`.** The prompt asked the workflow to *watch* for owner/threshold/module changes — Safe emits events for all three (`AddedOwner`, `ChangedThreshold`, `EnabledModule`). The right primitive is the `Event` trigger watching the Safe contract. The generator picked `Webhook` instead, meaning the workflow only fires when *something else* tells it to. That's a regression from the user's intent.
+
+2. **No state comparison.** The generated workflow polls owners, threshold, and modules in three parallel branches, then unconditionally fires three Discord messages. It would alert on *every* run, not on change. To do the job the prompt described, you need a `Database Query` to remember last-seen state and a `Condition` to compare. The generator didn't add either.
+
+3. **`network` is set to the string `"Ethereum"`, but the action schema says it must be a chain ID** (e.g. `"1"` for mainnet). I confirmed this against `search_protocol_actions(protocol: "safe")`:
+
+   ```
+   safe/get-owners
+     network: "string (chain ID)"
+     contractAddress: "string (supports {{@nodeId:Label.field}} templates) - 0x..."
+   ```
+
+   The generated config wouldn't validate. `validate_plugin_config` would catch it — which is exactly why the recommended authoring order ends with that step before `create_workflow`.
+
+So the honest pitch for `ai_generate_workflow` is: **it gives you a 70% workflow you have to fix.** That's still useful — typing out 14 nodes and 6 edges by hand is no fun — but the marketing one-liner ("describe intent, get a typed workflow") oversells it. Treat the output as a draft, not a deliverable.
 
 ### Path B — assemble by hand
 
