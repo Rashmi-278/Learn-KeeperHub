@@ -4,7 +4,7 @@ Running log of what we did, what worked, and what tripped us up while wiring up 
 
 ---
 
-## Session 1 — 2026-05-02
+## Session 1 - 2026-05-02
 
 ### Goal
 Genuinely understand KeeperHub well enough to (a) write developer docs for agents and (b) capture honest builder feedback.
@@ -15,13 +15,13 @@ Genuinely understand KeeperHub well enough to (a) write developer docs for agent
    - `docs.keeperhub.com/ai-tools` (MCP / AI tools)
    - `docs.keeperhub.com/api`
    - `docs.keeperhub.com/cli`
-   - `app.keeperhub.com` (platform — not fetched, just referenced)
+   - `app.keeperhub.com` (platform - not fetched, just referenced)
 
-2. **Built a mental model.** KeeperHub = execution + reliability layer for onchain AI agents. Three primitives: triggers, actions, conditions. Three surfaces: REST API, MCP server, `kh` CLI — all hitting the same backend. Auth: org-scoped `kh_` keys for agents; `wfb_` user keys only fire webhooks.
+2. **Built a mental model.** KeeperHub = execution + reliability layer for onchain AI agents. Three primitives: triggers, actions, conditions. Three surfaces: REST API, MCP server, `kh` CLI - all hitting the same backend. Auth: org-scoped `kh_` keys for agents; `wfb_` user keys only fire webhooks.
 
-3. **Wrote `AGENTS.md`** — developer-facing doc covering the mental model, the three surfaces, API key creation, MCP connection commands, all 19 MCP tools grouped by purpose, the safe authoring order (`list_action_schemas` → `get_plugin` → `validate_plugin_config` → `create_workflow` → `execute_workflow` → poll), agentic wallet options, and a minimal end-to-end agent loop.
+3. **Wrote `AGENTS.md`** - developer-facing doc covering the mental model, the three surfaces, API key creation, MCP connection commands, all 19 MCP tools grouped by purpose, the safe authoring order (`list_action_schemas` → `get_plugin` → `validate_plugin_config` → `create_workflow` → `execute_workflow` → poll), agentic wallet options, and a minimal end-to-end agent loop.
 
-4. **Wrote `FEEDBACK.md`** — honest builder feedback in the four requested categories (UX friction, repro bugs, doc gaps, feature requests). Bug section deliberately marked `[needs hands-on]` rather than fabricated.
+4. **Wrote `FEEDBACK.md`** - honest builder feedback in the four requested categories (UX friction, repro bugs, doc gaps, feature requests). Bug section deliberately marked `[needs hands-on]` rather than fabricated.
 
 5. **Connected the MCP server.**
    ```
@@ -35,7 +35,7 @@ Genuinely understand KeeperHub well enough to (a) write developer docs for agent
 - **404: `docs.keeperhub.com/ai-tools/agentic-wallets`.** Four wallet providers are named (x402, KeeperHub agentic wallet, agentcash, Coinbase) with no page explaining when to pick which.
 - **404: `docs.keeperhub.com/ai-tools/claude-code`.** No canonical doc for the plugin's slash commands or what `/keeperhub:login` actually does.
 - **`/keeperhub:login` ran in the shell, not Claude Code.** User typed it at the bash prompt → `bash: /keeperhub:login: No such file or directory`. It's a Claude Code slash command, not a CLI binary. Easy to misread from the docs given they don't show the surrounding context.
-- **`/keeperhub:login` also reported "Unknown command" inside Claude Code.** Likely because the Claude Code plugin wasn't installed — only the raw MCP server was added via `claude mcp add`. The plugin and the MCP server are separate installs; the docs conflate them.
+- **`/keeperhub:login` also reported "Unknown command" inside Claude Code.** Likely because the Claude Code plugin wasn't installed - only the raw MCP server was added via `claude mcp add`. The plugin and the MCP server are separate installs; the docs conflate them.
 - **`kh_` vs `wfb_` ambiguity.** Reference table buried; new builder grabbing the first key they see could end up with a `wfb_` key that silently won't work for the API or MCP.
 - **API key creation steps disagree across pages.** One says "avatar → API Keys", another says "Settings → API Keys". Trivial fix; real friction.
 - **Step-to-step reference syntax not specified anywhere obvious.** Workflows pass data between nodes "through built-in reference syntax" but the literal shape (`{{steps.foo.output}}`? JSONPath?) isn't shown.
@@ -43,9 +43,9 @@ Genuinely understand KeeperHub well enough to (a) write developer docs for agent
 
 ### Resolved this session
 
-- **"Do I need an API key?"** No — OAuth covers this interactive Claude Code session. API key is needed for headless/CI, direct REST calls outside MCP, or shared deployed agents.
+- **"Do I need an API key?"** No - OAuth covers this interactive Claude Code session. API key is needed for headless/CI, direct REST calls outside MCP, or shared deployed agents.
 
-### Session 1.5 — live MCP exploration
+### Session 1.5 - live MCP exploration
 
 Connected via `/mcp` (OAuth) and ran four discovery calls.
 
@@ -71,18 +71,18 @@ Connected via `/mcp` (OAuth) and ran four discovery calls.
 
 **Triggers.** 5 types: `Block`, `Event`, `Manual`, `Schedule`, `Webhook`.
 
-**Chains.** 21: Ethereum (mainnet/Sepolia), Base (mainnet/Sepolia), Arbitrum One/Sepolia, Polygon/Amoy, BNB Chain (mainnet/testnet), Avalanche/Fuji, Solana (mainnet/Devnet — listed twice in the response, minor bug), 0G + 0G Galileo, Plasma + Plasma Testnet, Tempo + Tempo Testnet.
+**Chains.** 21: Ethereum (mainnet/Sepolia), Base (mainnet/Sepolia), Arbitrum One/Sepolia, Polygon/Amoy, BNB Chain (mainnet/testnet), Avalanche/Fuji, Solana (mainnet/Devnet - listed twice in the response, minor bug), 0G + 0G Galileo, Plasma + Plasma Testnet, Tempo + Tempo Testnet.
 
-**Reference syntax — confirmed.** Pattern: `{{@nodeId:Label.field}}`. Examples: `{{@check-balance:Check Balance.balance}}`, `{{@trigger:Trigger.body.amount}}`, `{{@__system:System.unixTimestamp}}`. Resolved at runtime before each step. **This was the #1 doc gap in FEEDBACK.md — now resolved (for us; should still ship to public docs).**
+**Reference syntax - confirmed.** Pattern: `{{@nodeId:Label.field}}`. Examples: `{{@check-balance:Check Balance.balance}}`, `{{@trigger:Trigger.body.amount}}`, `{{@__system:System.unixTimestamp}}`. Resolved at runtime before each step. **This was the #1 doc gap in FEEDBACK.md - now resolved (for us; should still ship to public docs).**
 
 ### Bumps this round
 
-- **Two MCP responses overflowed Claude Code's tool-output cap.** `search_templates` (no args) returned **797k chars** for 85 templates; `list_action_schemas` returned **365k chars**. Both got auto-saved to disk and required `jq` to consume. This is a real DX problem for any agent building against this MCP server — burning context just to enumerate what's available.
+- **Two MCP responses overflowed Claude Code's tool-output cap.** `search_templates` (no args) returned **797k chars** for 85 templates; `list_action_schemas` returned **365k chars**. Both got auto-saved to disk and required `jq` to consume. This is a real DX problem for any agent building against this MCP server - burning context just to enumerate what's available.
 - **`Solana Devnet` appears twice** in the chains list (once with capital D, once apparently identical). Minor, but a dedupe bug in the schema response.
 
-### Session 2 — REST probe (real evidence, not speculation)
+### Session 2 - REST probe (real evidence, not speculation)
 
-Sourced `KH_API_KEY` from `.env` and curl'd the REST API directly. The key turned out to be `wfb_` prefix (user-scope), not `kh_` — which is itself the most teachable bug here. We probed anyway because some surprises are scope-independent.
+Sourced `KH_API_KEY` from `.env` and curl'd the REST API directly. The key turned out to be `wfb_` prefix (user-scope), not `kh_` - which is itself the most teachable bug here. We probed anyway because some surprises are scope-independent.
 
 **Auth + ambiguity (the worst finding).** `GET /workflows` returns HTTP 200 `[]` for:
 - valid `wfb_` key
@@ -92,7 +92,7 @@ Sourced `KH_API_KEY` from `.env` and curl'd the REST API directly. The key turne
 Three different "auth" states, identical empty success response. A new builder mistypes their key, sees no errors, and concludes their org is empty. This is silent failure of the worst kind.
 
 **Documented response envelope is wrong.** Docs claim `{"data": {...}}` / `{"error": {"code", "message"}}`. Reality:
-- Success: bare array (`[]` from `/workflows`, `[{...}, ...]` from `/chains`) — no `data` wrapper
+- Success: bare array (`[]` from `/workflows`, `[{...}, ...]` from `/chains`) - no `data` wrapper
 - 401: `{"error":"Unauthorized"}` (flat string)
 - 404 (resource): `{"error":"Workflow not found"}` (flat string)
 - 404 (route): `<!DOCTYPE html>...` Next.js error page
@@ -100,15 +100,15 @@ Three different "auth" states, identical empty success response. A new builder m
 Agents parsing JSON will crash on route 404s. Error `code` enums don't exist.
 
 **Documented endpoints that don't exist.** All return HTML 404:
-- `/api/executions` — the documented executions resource
-- `/api/runs`, `/api/workflow-runs` — common alternates
+- `/api/executions` - the documented executions resource
+- `/api/runs`, `/api/workflow-runs` - common alternates
 - `/api/v1/workflows`
 - `/api/analytics`
-- `/api/execute` — the documented "direct execution" endpoint
+- `/api/execute` - the documented "direct execution" endpoint
 
 **`POST /api/workflows` → 405 Method Not Allowed.** REST does not expose workflow creation at the documented path. Creation appears to be MCP-only (or via an undocumented internal route the dashboard uses).
 
-**No rate-limit headers anywhere.** 21+ rapid requests in a tight loop, every one HTTP 200, zero `X-RateLimit-*` or `Retry-After`. The documented "100 req/min" limit may exist but is unobservable to clients — they have to guess when to back off.
+**No rate-limit headers anywhere.** 21+ rapid requests in a tight loop, every one HTTP 200, zero `X-RateLimit-*` or `Retry-After`. The documented "100 req/min" limit may exist but is unobservable to clients - they have to guess when to back off.
 
 **Scope wall confirmed for `wfb_`:** `/integrations`, `/projects`, `/tags`, `/api-keys`, `/organizations`, `/user` all return 401. `/workflows`, `/workflows/{id}`, `/chains` are reachable.
 
@@ -116,15 +116,15 @@ Agents parsing JSON will crash on route 404s. Error `code` enums don't exist.
 
 ### Bumps this round
 
-- The `.env` had `wfb_` not `kh_`. The platform sells this as a documented restriction, but the *cost* of getting it wrong is a silent empty list, not an error — that's the bug, not the user's typo.
+- The `.env` had `wfb_` not `kh_`. The platform sells this as a documented restriction, but the *cost* of getting it wrong is a silent empty list, not an error - that's the bug, not the user's typo.
 - Hung curl loop on rapid-fire `/workflows` requests (21st req hung past 10s timeout). Could be coincidence; could be a soft throttle that hangs instead of returning 429. Worth re-testing.
 - `pkill` was needed to unstick the hung curl before the second probe batch.
 
-### Session 3 — get_plugin / get_template / tools_documentation deep-dive
+### Session 3 - get_plugin / get_template / tools_documentation deep-dive
 
 Used the OAuth-MCP path (no kh_ key needed for MCP) to introspect three meta tools and the canonical hello-world template. The most important findings of the entire engagement.
 
-**Live MCP tool count: 30 (not 19).** Public docs claim 19 tools including `validate_plugin_config`. Live server has 30 (after also catching `search_workflows` which I missed earlier) and **does not include `validate_plugin_config`**. The "safe authoring order" in AGENTS.md was wrong — corrected to drop the validate step and add `get_plugin` as the canonical schema source.
+**Live MCP tool count: 30 (not 19).** Public docs claim 19 tools including `validate_plugin_config`. Live server has 30 (after also catching `search_workflows` which I missed earlier) and **does not include `validate_plugin_config`**. The "safe authoring order" in AGENTS.md was wrong - corrected to drop the validate step and add `get_plugin` as the canonical schema source.
 
 **`get_plugin` is the single most important tool, and it's not in the official authoring guide.** Its `tips` array contains schema rules that exist nowhere else: chain-ID format, Condition operator symbols, `leftOperand`/`rightOperand` field names, Database Query templating, `tokenConfig` shape, edge `sourceHandle`-only rule, the `__system` namespace, the `triggeredAt` field. Every one of these is a landmine that fails validation if you guess.
 
@@ -132,7 +132,7 @@ Used the OAuth-MCP path (no kh_ key needed for MCP) to introspect three meta too
 
 **`list_workflow` and `list_workflows` are semantic opposites, not variants.** Plural enumerates org workflows (read). Singular publishes to the marketplace (write). Naming-collision footgun.
 
-**`get_template("qf8nxbxhdsqie2r3u1pb2")` — the canonical "Wallet ETH Balance Watcher" — is broken in four ways:**
+**`get_template("qf8nxbxhdsqie2r3u1pb2")` - the canonical "Wallet ETH Balance Watcher" - is broken in four ways:**
 - Discord-labeled node with `actionType: "slack/send-message"`
 - `network: "sepolia"` instead of the chain-ID string
 - Edge with `targetHandle: null` (forbidden by tips)
@@ -142,9 +142,9 @@ Used the OAuth-MCP path (no kh_ key needed for MCP) to introspect three meta too
 
 ### Bumps this round
 
-- The KeeperHub MCP server **disconnected** mid-session (system reminder confirms `mcp__keeperhub__*` tools are no longer available). Cause unknown — could be an OAuth token TTL hit (1h access token), could be a server-side restart. Affects nothing already captured but blocks further live MCP work in this session until reconnected via `/mcp`.
+- The KeeperHub MCP server **disconnected** mid-session (system reminder confirms `mcp__keeperhub__*` tools are no longer available). Cause unknown - could be an OAuth token TTL hit (1h access token), could be a server-side restart. Affects nothing already captured but blocks further live MCP work in this session until reconnected via `/mcp`.
 
-### Session 4 — three guardians live, schema field-name lie discovered
+### Session 4 - three guardians live, schema field-name lie discovered
 
 Deployed three Safe-security guardians against the user's ENS multisig (`0x91c32893216dE3eA0a55ABb9851f581d4503d39b`) on Ethereum mainnet, with a real Discord webhook integration (`9k7jxusbfv6ghljnbfzc8`).
 
@@ -153,21 +153,21 @@ Deployed three Safe-security guardians against the user's ENS multisig (`0x91c32
 | Threshold | `vzhk455chprgjm1ccqzwa` | `5ixuu7ohjcqf5sqi0tppw` | ✅ enabled |
 | Owner Change | `oigd9650le4ki8peda9xd` | `lgbtjeyzz9wlf4yqf4t8s` | ✅ enabled |
 | Module Install | `b9z9utqbr1oqt5tx1pwvt` | `3sbp3tdt6sd1ypit2zh94` | ✅ enabled |
-| Guard Change | — | `2kljmnezos6yhqh5eydt2` | ⛔ skipped (too broken) |
+| Guard Change | - | `2kljmnezos6yhqh5eydt2` | ⛔ skipped (too broken) |
 
 **The biggest finding of the entire engagement: the schema lies about output field names.**
 
-Verified end-to-end with two manual smoke tests on the threshold guardian. First test used the schema-documented field name `.owners` — execution succeeded, Discord delivered, but the message body dropped the owner list silently. Second test used `.result` (the runtime's actual emitted name) — same workflow, same node, populated correctly.
+Verified end-to-end with two manual smoke tests on the threshold guardian. First test used the schema-documented field name `.owners` - execution succeeded, Discord delivered, but the message body dropped the owner list silently. Second test used `.result` (the runtime's actual emitted name) - same workflow, same node, populated correctly.
 
 The pattern holds across the Safe family:
 - `safe/get-owners` schema says `outputFields.owners` → runtime emits `output.result`
 - `safe/get-threshold` schema says `outputFields.threshold` → runtime emits `output.result`
 - `safe/get-modules-paginated` schema says `outputFields.array`, `outputFields.next` → runtime emits wrapped: `output.result.array`, `output.result.next`
 
-Every Safe featured template references the schema names. **Every Safe featured template would deliver alerts with empty data sections.** The defect is invisible until you actually fire the workflow and read the rendered message — most builders never get there in dev because Event triggers don't fire under manual test.
+Every Safe featured template references the schema names. **Every Safe featured template would deliver alerts with empty data sections.** The defect is invisible until you actually fire the workflow and read the rendered message - most builders never get there in dev because Event triggers don't fire under manual test.
 
 **Why Guard Change Alert was skipped.** Inspecting `get_template("2kljmnezos6yhqh5eydt2")` revealed the template is structurally broken beyond patch-friendliness:
-- Trigger `eventName: ""` (empty — would never fire)
+- Trigger `eventName: ""` (empty - would never fire)
 - Trigger `contractAddress: ""` (empty)
 - Three Condition nodes; only one has a properly-structured `conditionConfig`, the other two carry only the deprecated string-mode `condition` field
 - A "PagerDuty Incident" webhook node has `routing_key: "YOUR_PAGERDUTY_KEY"` as literal placeholder text
@@ -184,14 +184,14 @@ That template needs a rebuild from the original event ABI plus a from-scratch wi
 | Read-node `label` empty | ✗ | ✗ ×2 | ✗ | n/a |
 | Discord node missing `integrationId` | ✗ | ✗ | ✗ | ✗ |
 | Discord references wrong output field | ✗ | ✗ ×2 | ✗ | ✗ |
-| Trigger `eventName` empty | — | — | — | ✗ |
-| `conditionConfig` missing on Condition nodes | — | — | — | ✗ ×2 |
-| Hardcoded credential placeholder | — | — | — | ✗ |
-| Description-vs-implementation drift | — | — | ✗ | ✗ |
+| Trigger `eventName` empty | - | - | - | ✗ |
+| `conditionConfig` missing on Condition nodes | - | - | - | ✗ ×2 |
+| Hardcoded credential placeholder | - | - | - | ✗ |
+| Description-vs-implementation drift | - | - | ✗ | ✗ |
 
 That's a lot of bugs in security-critical templates. Sample size: every featured Safe template I touched.
 
-**`deploy_template` ignores its `name` parameter.** Verified twice — passed `name: "ENS Multisig: ..."`, both clones came back as `"<source name> (Copy)"`. Documented in B9-pre.
+**`deploy_template` ignores its `name` parameter.** Verified twice - passed `name: "ENS Multisig: ..."`, both clones came back as `"<source name> (Copy)"`. Documented in B9-pre.
 
 ### Bumps this round
 

@@ -1,6 +1,6 @@
 # KeeperHub: Builder Feedback
 
-Honest notes from a developer working through the docs to wire an agent against KeeperHub. Organized into UX friction, bugs, doc gaps, and feature requests.
+Notes from a developer working through the docs to wire an agent against KeeperHub. Organized into UX friction, bugs, doc gaps, and feature requests.
 
 > **Scope note.** Most of what's below comes from reading the public docs end-to-end and trying to assemble a working mental model for an agent integration. Items that require actually running the platform (real UI flows, MCP server connection, on-chain execution) are flagged `[needs hands-on]` so we don't ship invented complaints.
 
@@ -11,12 +11,12 @@ Honest notes from a developer working through the docs to wire an agent against 
 These are concrete URLs that should work and didn't, or content that's referenced but not findable from the obvious entry points.
 
 - **`docs.keeperhub.com/ai-tools/mcp` → 404.** The AI Tools overview page strongly implies a dedicated MCP reference exists, but the most natural URL for it doesn't resolve. The actual page lives at `…/mcp-server`. Either alias both or fix the inbound links.
-- **`docs.keeperhub.com/ai-tools/agentic-wallets` → 404.** Agentic wallets are listed as one of three first-class AI tools and four providers are named (x402, KeeperHub agentic wallet, agentcash, Coinbase) — but there's no page explaining when to pick which, how funding flows work, or what the agent has to do to use them. This is the most underdocumented part of the most differentiating feature.
+- **`docs.keeperhub.com/ai-tools/agentic-wallets` → 404.** Agentic wallets are listed as one of three first-class AI tools and four providers are named (x402, KeeperHub agentic wallet, agentcash, Coinbase) - but there's no page explaining when to pick which, how funding flows work, or what the agent has to do to use them. This is the most underdocumented part of the most differentiating feature.
 - **`docs.keeperhub.com/ai-tools/claude-code` → 404.** The plugin is mentioned everywhere but there's no canonical page documenting which slash commands it adds, what `/keeperhub:login` actually does (OAuth? device code? key paste?), what skills it ships, and how it interacts with an existing MCP install.
 - **API key creation steps disagree across pages.** One page says "avatar menu → API Keys → Organisation tab"; another says "Settings → API Keys → Organisation tab." Pick one; it's a 30-second fix that prevents a "wait, where?" moment on the very first step.
 - **`kh_` vs `wfb_` distinction is buried.** A new builder grabs the first key they see, and `wfb_` keys silently won't work for the API or MCP. Surface this *at* the API Keys creation UI, not just in a reference table.
 - **MCP authoring order isn't called out.** `create_workflow` requires the right node/edge shape; `list_action_schemas` and `validate_plugin_config` exist precisely to make that tractable. The docs list all 19 tools but never say "call these in this order." A 6-line "happy path" sequence in the MCP page would save every first-time agent author a round of trial-and-error.
-- **Reference syntax for step-to-step data flow is documented inside `list_action_schemas` but not in the public docs.** The actual pattern is `{{@nodeId:Label.field}}` (e.g. `{{@check-balance:Check Balance.balance}}`, `{{@trigger:Trigger.body.amount}}`, `{{@__system:System.unixTimestamp}}`). This is load-bearing for every multi-step workflow and should have its own page in the public docs — agents and humans both have to discover it by introspecting an MCP tool today.
+- **Reference syntax for step-to-step data flow is documented inside `list_action_schemas` but not in the public docs.** The actual pattern is `{{@nodeId:Label.field}}` (e.g. `{{@check-balance:Check Balance.balance}}`, `{{@trigger:Trigger.body.amount}}`, `{{@__system:System.unixTimestamp}}`). This is load-bearing for every multi-step workflow and should have its own page in the public docs - agents and humans both have to discover it by introspecting an MCP tool today.
 
 - **Two MCP discovery calls overflow tool-output limits.** `search_templates` with no args returned 797k chars for 85 templates; `list_action_schemas` returned 365k chars for 396 actions. Both got auto-truncated and saved to disk, forcing `jq` to consume. Default behavior should be paginated/summary; full payload on opt-in.
 
@@ -25,7 +25,7 @@ These are concrete URLs that should work and didn't, or content that's reference
 
 ## 2. UX / UI friction (from the developer-onboarding flow)
 
-- **Three surfaces, one capability — but no decision matrix on the landing page.** A builder lands on the docs and has to read four pages before realizing the API, CLI, and MCP all hit the same backend. A single table at the top of the docs ("If you're doing X, use Y") would cut time-to-first-call dramatically.
+- **Three surfaces, one capability - but no decision matrix on the landing page.** A builder lands on the docs and has to read four pages before realizing the API, CLI, and MCP all hit the same backend. A single table at the top of the docs ("If you're doing X, use Y") would cut time-to-first-call dramatically.
 - **OAuth vs API key for MCP isn't a clear choice.** Both are documented, but it's not obvious which to pick when. Suggested rule of thumb in the docs: "Interactive Claude Code → OAuth. Headless agent or CI → `kh_` header." Right now that decision is left to the reader.
 - **`[needs hands-on]` Plugin install vs. manual MCP add.** Unclear whether running `/keeperhub:login` after installing the plugin *also* registers the MCP server, or whether you need both. A one-line confirmation in the plugin docs would resolve it.
 - **`[needs hands-on]` First-run onboarding for an agent.** Unverified, but worth checking: when an agent calls `create_workflow` against a brand-new org with zero integrations, does the error message actually tell it to run `list_integrations` / `get_wallet_integration` first, or does it fail opaquely?
@@ -34,7 +34,7 @@ These are concrete URLs that should work and didn't, or content that's reference
 
 These were verified with `curl` against `https://app.keeperhub.com/api` on 2026-05-02. Every finding has the literal request that surfaced it.
 
-### B1. `GET /api/workflows` returns `[]` with **no auth at all** *(severity: high — silent failure)*
+### B1. `GET /api/workflows` returns `[]` with **no auth at all** *(severity: high - silent failure)*
 
 ```
 $ curl -i https://app.keeperhub.com/api/workflows
@@ -64,7 +64,7 @@ Three different error shapes (flat string, no `code` enum, raw HTML for unknown 
 
 ### B3. Documented endpoints that 404
 
-All return HTML 404 with a `wfb_` key. (Should be retested with a `kh_` key — but route 404s shouldn't depend on auth scope.)
+All return HTML 404 with a `wfb_` key. (Should be retested with a `kh_` key - but route 404s shouldn't depend on auth scope.)
 
 - `/api/executions` (the executions resource the docs name)
 - `/api/runs`, `/api/workflow-runs`, `/api/v1/workflows`
@@ -73,15 +73,15 @@ All return HTML 404 with a `wfb_` key. (Should be retested with a `kh_` key — 
 
 ### B4. `POST /api/workflows` → 405 Method Not Allowed
 
-Workflow creation isn't reachable via REST at the documented path. MCP `create_workflow` works fine, so the capability exists — but the REST mount appears to be missing or moved.
+Workflow creation isn't reachable via REST at the documented path. MCP `create_workflow` works fine, so the capability exists - but the REST mount appears to be missing or moved.
 
 ### B5. No rate-limit observability
 
-Docs state 100 req/min for authed clients. Across 21 rapid `GET /api/workflows` calls every response was 200 with no `X-RateLimit-*` or `Retry-After` header. Clients have no way to back off proactively, and (anecdotally) one request hung past a 10s timeout instead of returning 429 — possibly a soft throttle masquerading as latency.
+Docs state 100 req/min for authed clients. Across 21 rapid `GET /api/workflows` calls every response was 200 with no `X-RateLimit-*` or `Retry-After` header. Clients have no way to back off proactively, and (anecdotally) one request hung past a 10s timeout instead of returning 429 - possibly a soft throttle masquerading as latency.
 
 ### B6. `chains` array contains a real duplicate
 
-The `chains` array returned by `list_action_schemas` and `get_plugin` lists "Solana Devnet" twice — with **different** chain IDs (`102` and `103`) but identical name and explorer URL. Not a casing artifact, an actual data bug:
+The `chains` array returned by `list_action_schemas` and `get_plugin` lists "Solana Devnet" twice - with **different** chain IDs (`102` and `103`) but identical name and explorer URL. Not a casing artifact, an actual data bug:
 
 ```json
 { "chainId": 103, "name": "Solana Devnet", "explorerUrl": "https://solscan.io/?cluster=devnet" },
@@ -132,7 +132,7 @@ The optional `name` parameter is documented in the schema but discarded by the i
 | `safe/get-threshold` | `outputFields.threshold` | `output.result` | `.threshold` ❌ |
 | `safe/get-modules-paginated` | `outputFields.array`, `outputFields.next` | `output.result.array`, `output.result.next` | `.array` ❌ |
 
-Live evidence — same workflow execution, same `safe/get-owners` node:
+Live evidence - same workflow execution, same `safe/get-owners` node:
 
 ```
 node output (from execution log):
@@ -146,7 +146,7 @@ discord message after rendering {{@<id>:Safe: Get Owners.result}}:
 ```
 
 **Implications:**
-1. Every featured Safe template that references `.owners`, `.threshold`, `.array`, or `.next` is silently broken — the alert delivers, but the data section is empty. Operators get a "threshold changed" ping with no idea what it changed to.
+1. Every featured Safe template that references `.owners`, `.threshold`, `.array`, or `.next` is silently broken - the alert delivers, but the data section is empty. Operators get a "threshold changed" ping with no idea what it changed to.
 2. The `get_plugin` `outputFields` map is documentation, not contract. Agents must consult execution logs (or `execute_protocol_action` output) to learn the real shapes.
 3. Multi-output reads (`get-modules-paginated`) wrap fields under `result.<name>`; single-output reads collapse to `result`. The schema doesn't surface this distinction.
 
@@ -156,11 +156,11 @@ Fix path: the runtime should either emit the documented field names, or the `out
 
 Verified by deploying it live (`get_template("5ixuu7ohjcqf5sqi0tppw")` and `deploy_template` of same):
 
-1. **Discord node missing `integrationId`.** Action type is `discord/send-message`, but the field that points at the Discord webhook integration is absent. The workflow saves, enables, and the trigger fires — but the Discord post would fail at execution because the action has no credential to use. Featured template that physically cannot deliver its alert.
+1. **Discord node missing `integrationId`.** Action type is `discord/send-message`, but the field that points at the Discord webhook integration is absent. The workflow saves, enables, and the trigger fires - but the Discord post would fail at execution because the action has no credential to use. Featured template that physically cannot deliver its alert.
 
 2. **`safe/get-owners` node has `label: ""`.** The Discord message references `{{@<nodeId>:Safe: Get Owners.owners}}`. With an empty label the reference doesn't resolve; the published message would render the literal template string instead of the owner list. Self-contradictory template.
 
-3. **Sepolia placeholder address and chain.** Documented in the description ("Replace the Safe proxy address (0x0000...0001) with your own") — but the placeholder used is `0xed772Df22f203917480EE0F7e3ca0ef7Bc2b206b` (a different Sepolia Safe), not the documented `0x0000...0001`. The description and template disagree.
+3. **Sepolia placeholder address and chain.** Documented in the description ("Replace the Safe proxy address (0x0000...0001) with your own") - but the placeholder used is `0xed772Df22f203917480EE0F7e3ca0ef7Bc2b206b` (a different Sepolia Safe), not the documented `0x0000...0001`. The description and template disagree.
 
 This isn't one bad template. The same defect shape (missing `integrationId`, label/reference mismatch, hardcoded placeholder address) appears in the Safe family's featured templates. Either the templates were never tested end-to-end, or there's no CI lint over them.
 
@@ -170,13 +170,13 @@ The canonical hello-world template (`get_template("qf8nxbxhdsqie2r3u1pb2")`) shi
 
 1. **Wrong action type for the labeled intent.** A node labeled "Send Discord Message" with description "Sends alert to configured Discord channel" and a `discordMessage` field has `actionType: "slack/send-message"`. The user thinks they're sending Discord; the runtime targets Slack with a field name Slack doesn't recognize.
 
-2. **`network: "sepolia"`** — a name, not the chain-ID string the `get_plugin` `tips` say is required (`"11155111"`). Either the schema rule is unenforced or this featured template fails on deploy. Either resolution is bad: silent rule drift, or a broken hero example.
+2. **`network: "sepolia"`** - a name, not the chain-ID string the `get_plugin` `tips` say is required (`"11155111"`). Either the schema rule is unenforced or this featured template fails on deploy. Either resolution is bad: silent rule drift, or a broken hero example.
 
 3. **Edge with `"targetHandle": null`** despite the same `tips` array saying "Do NOT use targetHandle." Tips are warnings; the engine accepts the field anyway.
 
 4. **Condition node carries both a deprecated `condition` string and a structured `conditionConfig`.** Migration drift left a string-mode `condition: "{{@…}} < 0.1"` next to the typed-rule shape. Which one wins on execution is unspecified.
 
-This isn't a hidden corner — it's the first template a new builder will look at to learn the platform. Until featured templates are linted against the `tips` rules, builders learn anti-patterns by example.
+This isn't a hidden corner - it's the first template a new builder will look at to learn the platform. Until featured templates are linted against the `tips` rules, builders learn anti-patterns by example.
 
 ### B9b. Undocumented `{{env.VAR}}` reference syntax
 
@@ -193,7 +193,7 @@ A builder who copies a template but doesn't know about `{{env.…}}` will look f
 The MCP server's own `tools_documentation` response covers 14 tools and 3 chains, omitting:
 - The marketplace surface entirely (`list_workflow`, `unlist_workflow`, `update_workflow_listing`, `get_workflow_listing`, `call_workflow`)
 - Direct-execution tools (`execute_contract_call`, `execute_protocol_action`, `execute_transfer`, `execute_check_and_execute`, `get_direct_execution_status`)
-- The most useful discovery tools (`search_protocol_actions`, `get_plugin` — the latter being the *only* place the schema landmines are documented)
+- The most useful discovery tools (`search_protocol_actions`, `get_plugin` - the latter being the *only* place the schema landmines are documented)
 - 18 of 21 supported chains
 
 An agent using the server's own self-documentation as ground truth gets less than half the picture.
@@ -214,12 +214,12 @@ list_workflows:
    Optionally filter by projectId or tagId."
 ```
 
-Singular: marketplace publish (write — has side effects, sets `isListed=true`, public slug). Plural: org enumeration (read).
+Singular: marketplace publish (write - has side effects, sets `isListed=true`, public slug). Plural: org enumeration (read).
 
 The naming is dangerous because:
 1. The two tool names are visually one character apart.
 2. `list` is overwhelmingly read-coded in API conventions.
-3. There is no schema or warning at the call site that distinguishes them — agents picking by name autocomplete will hit the wrong one routinely.
+3. There is no schema or warning at the call site that distinguishes them - agents picking by name autocomplete will hit the wrong one routinely.
 
 Suggested rename: `publish_workflow` / `unpublish_workflow` for the write pair; keep `list_workflows` for the read. Same engine, no naming trap.
 
@@ -227,7 +227,7 @@ Suggested rename: `publish_workflow` / `unpublish_workflow` for the write pair; 
 
 Tool description implies it returns "a workflow definition ready to be created." Actual return is a newline-delimited stream of `setName`/`setDescription`/`addNode`/`addEdge`/`complete` operations. Caller has to apply them to construct the workflow object before passing to `create_workflow`. Documented behavior would be `create_workflow(generated_output)`; actual behavior requires a translation layer.
 
-Additionally, the operations the generator emits frequently violate the schema rules in §B8 — most reliably the `network: "Ethereum"` mistake — meaning even after applying the ops you get a workflow that won't pass server validation.
+Additionally, the operations the generator emits frequently violate the schema rules in §B8 - most reliably the `network: "Ethereum"` mistake - meaning even after applying the ops you get a workflow that won't pass server validation.
 
 ## 4. Feature requests
 
@@ -240,7 +240,7 @@ Ranked by how much each would have helped a first-time agent build.
 5. **A `kh workflows lint` CLI command** that runs the equivalent of `validate_plugin_config` across an entire workflow file before push. Faster feedback loop than round-tripping through `create_workflow`.
 6. **Per-execution cost preview.** Before `execute_workflow` runs, return the estimated gas + agentic-wallet debit. Agents budgeting their own funds need this; right now the only way to learn cost is to spend it.
 7. **MCP `resources` listing for executions, not just workflows.** `keeperhub://executions/{id}` would let agents pull logs as a resource rather than a tool call, which composes better with reasoning loops.
-8. **Idempotency keys on `execute_workflow`.** Agents retry. Without an idempotency key, retries can double-fire onchain actions — a real money problem.
+8. **Idempotency keys on `execute_workflow`.** Agents retry. Without an idempotency key, retries can double-fire onchain actions - a real money problem.
 
 ---
 

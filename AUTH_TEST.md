@@ -1,4 +1,4 @@
-# `/api/workflows` auth bug — reproduction
+# `/api/workflows` auth bug - reproduction
 
 Verified live on 2026-05-02 against `app.keeperhub.com`.
 
@@ -46,11 +46,11 @@ The contract the rest of the API follows is "401 on missing/invalid auth." `/api
 
 ## Suggested fix
 
-The handler should reject unauthenticated requests with `401 {"error":"Unauthorized"}` before falling through to the org scope filter. If the silent-empty behavior is intentional (e.g., to avoid leaking that the endpoint exists), document it explicitly — silent acceptance of any auth string is worse than an explicit 401.
+The handler should reject unauthenticated requests with `401 {"error":"Unauthorized"}` before falling through to the org scope filter. If the silent-empty behavior is intentional (e.g., to avoid leaking that the endpoint exists), document it explicitly - silent acceptance of any auth string is worse than an explicit 401.
 
 ## Related observations
 
-- Documented endpoints `/api/executions` and `/api/execute` both return Next.js HTML 404. **Confirmed scope-independent:** retested with a valid `kh_` (organization-scoped) key — still 404 HTML. The auth doc explicitly lists both as accepting `kh_` keys. The routes are not mounted at the documented paths regardless of who's asking.
+- Documented endpoints `/api/executions` and `/api/execute` both return Next.js HTML 404. **Confirmed scope-independent:** retested with a valid `kh_` (organization-scoped) key - still 404 HTML. The auth doc explicitly lists both as accepting `kh_` keys. The routes are not mounted at the documented paths regardless of who's asking.
 - `/api/analytics` also 404s with `kh_`.
 - `/api/organizations` returns `401 Unauthorized` even with `kh_`, despite the auth doc listing "Organization management" as accepted on API keys. Either the path is different from what the doc implies, or org management really is session-only and the doc is wrong.
 - Error envelope on the wire is `{"error": "<string>"}`, not the documented `{"error": {"code": "...", "message": "..."}}`. Agents switching on `response.error.code` always hit the default branch.
