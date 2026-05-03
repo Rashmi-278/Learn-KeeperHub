@@ -396,6 +396,25 @@ That confirms the chain-ID patch (`"1"` not `"sepolia"`/`"11155111"`), the real 
 
 The `deploy_template → update_workflow → enable → smoke` loop took six MCP calls and four manual patches to get a featured template working. The marketing version of this is "deploy a Safe guardian in one click." The real version is "deploy a 70%-correct workflow, fix four schema bugs, then it works." That's still useful - typing this from scratch would be a lot more than four corrections - but it isn't one click.
 
+## Reproducing the demo
+
+The three workflows running on this org:
+
+| Name | id | Watches |
+|---|---|---|
+| ENS Multisig: Threshold Guardian | `vzhk455chprgjm1ccqzwa` | `ChangedThreshold` |
+| ENS Multisig: Owner Change Guardian | `oigd9650le4ki8peda9xd` | `AddedOwner` |
+| ENS Multisig: Module Install Guardian | `b9z9utqbr1oqt5tx1pwvt` | `EnabledModule` |
+
+`./demo.sh` (in this repo) lists them via REST and prints enabled state, trigger, and node/edge counts. Requires `ORG_KH_API_KEY` (the `kh_` org key) in `.env`.
+
+To fire one manually and verify Discord delivery:
+
+```bash
+curl -X POST "https://app.keeperhub.com/api/workflows/vzhk455chprgjm1ccqzwa/execute" \
+  -H "Authorization: Bearer $ORG_KH_API_KEY"
+```
+
 ## What I'd do differently for production
 
 - **Bind a wallet integration** before any write actions. `get_wallet_integration` returns the integration ID you reference in write nodes. Until that's wired, your workflow can read but not transact.

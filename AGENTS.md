@@ -24,6 +24,17 @@ Steps reference upstream output via a built-in reference syntax, so a chain even
 
 All three hit the same backend. Pick by transport, not capability.
 
+## What to build, and what to reach for
+
+| Goal | Minimal path |
+|---|---|
+| Watch a contract event, alert on Discord/Slack | Event trigger -> read action (e.g. `safe/get-owners`) -> notification action. The three guardians in this repo are the canonical example. |
+| Run a transfer or contract call on a schedule | Schedule trigger -> `execute_transfer` or contract write action with a wallet integration. |
+| One-shot onchain action (no persisted workflow) | `execute_contract_call`, `execute_protocol_action`, `execute_transfer` directly. No `create_workflow` needed. Poll with `get_direct_execution_status`. |
+| Receive an external event, fan out to chain or HTTP | Webhook trigger (uses `wfb_` key) -> condition -> action. |
+| Let the model draft a workflow from English | `ai_generate_workflow`. Treat the output as a 70% draft - it streams `addNode`/`addEdge` ops, often with wrong `network` (chain name vs id) and missing `integrationId`. Always reread with `get_workflow` before enabling. |
+| Verify schema before authoring | `get_plugin(pluginType)` and read the `tips` array. The tips contain rules that exist nowhere else (operators, `tokenConfig` shape, edge handles). |
+
 ## API keys
 
 Agents need an **organization-scoped** key (prefix `kh_`). User keys (`wfb_`) only fire webhook triggers and won't work for the API or MCP.
